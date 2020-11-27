@@ -1,0 +1,16 @@
+1d0
+< No org-babel-execute function for %s!
+684a684
+>       ;; info: language argument + params
+715c715,719
+< 		 (cmd (intern (concat "org-babel-execute:" lang)))
+---
+> 		 ;; OVERRIDE WITH :stream TO ACCESS THE PROCESS WE CALL
+> 		 ;; e.g. (:stream . "calculator")
+> 		 (cmd (if (assoc :servant params)
+> 			#'org-babel-servant
+> 			(intern (concat "org-babel-execute:" lang))))
+716a721
+> 	   ;; maybe this error message should be rewritten 
+726a732
+> 		    ;; this should now just work

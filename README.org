@@ -1,0 +1,230 @@
+#+Title: Experience Report: Steps to "Emacs Hyper Notebooks"
+#+Author: Joseph Corneli, Raymond Puzio, and Cameron Ray Smith
+#+Date: 10 minute talk for EmacsConf 2020 (28 Nov 2020)
+#+OPTIONS: toc:nil
+#+LATEX_HEADER: \usepackage[utf8x]{inputenc}
+
+* Scenario                                                             :20s:
+
+Ray and Cameron have been collaborating for years on theoretical
+biology research.  In a typical project, they might use Maxima to make
+symbolic calculations and Julia for simulations.
+
+Their work combines biology, physics, and computer science.
+
+- E.g., Latest work-in-progress is on branching processes for cancer
+  modelling.
+* The problem                                                          :20s:
+
+- Moving code and data between different programs by hand.
+- Separate workflows for writing notes and preparing publications.
+- This is time consuming and error prone!
+* Possible solutions                                                   :20s:
+
+Cameron is experienced with Jupyter and...
+
+- Script of Scripts (https://vatlab.github.io/sos-docs/) partially
+  solves /some/ of the problems.
+
+Joe and Ray were happy explore Emacs-based solutions.
+(And Cameron got enthusiastic about Doom Emacs!)
+
+* Emacs+Org Mode...                                                     :1m:
+
+| TOOLS    | EMACS/ORG      | ——————————————————————————————————————— |
+| Maxima   | maxima-mode    | Solving DE symbolically                 |
+| Julia    | julia-mode     | Run the numerical solver                |
+| —        | org-poly       | Run multiple modes inside Org mode      |
+| Beamer   | org-tree-slide | Make slides for a presentation          |
+| Wikis    | Org Roam       | Prepare the paper in a nonlinear wiki   |
+| —        | Logseq         | ... with coauthors who don’t use Emacs  |
+| Pairing  | lockstep.el    | Collaborate in real time                |
+| Etherpad | crdt.el        | ... with multiple people typing at once |
+| Zotero   | ORB            | Reference related work                  |
+| TeX      | latex-mode     | Typeset the results                     |
+| Jekyll   | Firn           | Publish work in progress on a blog      |
+| KaTeX    | fragtog        | ... including LaTeX math symbols        |
+| LaTeXML  | Org Mode!      | ... or possibly more advaced LaTeX      |
+
+* Naive calculation, using Maxima mode                                  :1m:
+
+*Maxima doesn’t have a long-running process by default!* Here’s a *“partridge in a pear tree”* workaround.
+#+begin_example
+⌗+NAME: solve-for-u0
+⌗+BEGIN_SRC maxima :results raw
+tex(u0sol : part(solve ([u/(D*u + s) = %e^(-s*v) * u0/(D*u0 + s)], [u0]), 1 , 2));
+⌗+END_SRC
+#+end_example
+#+RESULTS: solve-for-u0
+$$-{{s\,u\,e^{s\,v}}\over{D\,u\,e^{s\,v}-D\,u-s}}$$
+#+NAME: check-characteristic-u
+#+begin_example
+⌗+BEGIN_SRC maxima :results raw :noweb yes
+<<solve-for-u>>
+tex(factor(diff(usol, v) + usol*(D*usol + s)));
+⌗+END_SRC
+#+end_example
+#+RESULTS: check-characteristic-u
+$${{s\,u_{0}}\over{\left(D\,u_{0}+s\right)\,e^{s\,v}-D\,u_{0}}}$$
+$$0$$
+
+* Problem 1: passing variables and outputs! — Org mode can do this      :1m:
+
+(Actually, perhaps it’s a bit easier than the naive attempt suggests.)
+
+#+begin_example
+⌗+name: block-1
+⌗+BEGIN_SRC emacs-lisp :cache yes :results raw
+(current-time-string)
+⌗+END_SRC
+
+⌗+RESULTS[8dfa404531eb9e20742feb333c9031cd519de5ce]: block-1
+Fri Nov 27 19:17:23 2020
+
+⌗+BEGIN_SRC emacs-lisp :results raw :var input=block-1 :noweb yes
+(format "Then %S and now: %S" <<block-1>> input)
+⌗+END_SRC
+
+⌗+RESULTS:
+Then "Fri Nov 27 19:18:26 2020" and now: "Fri Nov 27 19:17:23 2020
+"
+#+end_example
+                         — [[https://kitchingroup.cheme.cmu.edu/blog/2019/02/12/Using-results-from-one-code-block-in-another-org-mode/][Thanks to the Kitchin Group for their docs!]]
+
+* Problem 2: Making the process long running                            :3m:
+** Solution: access maxima via a new “ob-servant” facility
+
+#+begin_src exp :servant maxima-proc :results output org
+display2d:false
+#+end_src
+#+RESULTS:
+#+begin_src org
+false
+#+end_src
+
+#+begin_src exp :servant maxima-proc :results output raw
+expand((x+1)^9)
+#+end_src
+#+RESULTS:
+$$x^9+9\,x^8+36\,x^7+84\,x^6+126\,x^5+126\,x^4+84\,x^3+36\,x^2+9\,x+1$$
+
+(*Bonus feature*: we made it do tex output by default.)
+
+** Minor change to ob-core.el
+
+We added a =:servant= parameter to override =org-babel-execute:<lang>=
+inside =org-babel-execute-src-block=.  (We still want to keep the
+language around to control fontification etc.)
+
+#+begin_src diff
+715c715,719
+< 		 (cmd (intern (concat "org-babel-execute:" lang)))
+---
+> 		 ;; OVERRIDE WITH :stream TO ACCESS THE PROCESS WE CALL
+> 		 ;; e.g. (:stream . "calculator")
+> 		 (cmd (if (assoc :servant params)
+> 			#'org-babel-servant
+> 			(intern (concat "org-babel-execute:" lang))))
+#+end_src
+
+** Quick overview of ob-servant.el
+
+#+begin_src emacs-lisp
+(defvar org-babel-servant-info nil)     ;; A hash table storing :preproc, :postproc etc., per service
+(defun org-babel-servant-setup () ... )
+(defun org-babel-servant-callback (prc str) ... )
+(defun org-babel-servant-error-callback (prc str) ... )
+(defun org-babel-servant (body params)
+      ;; ① Extract the process from the param list.
+      ;; ② Preprocess the body if possible.
+      ;; ③ Set the timeout.
+      ;; ④ Should make sure we really have a process before proceeding further!
+      ;; ⑤ Clear the last output.  Later on, we might want to allow the
+      ;;    option of archiving the old output for safe keeping. (Like McCarthy Elephant 2000?)
+      ;; ⑥ Record the time
+      ;; ⑦ Send out a request to the program we’re calling
+      ;; ⑧ Wait for the replies... 
+      ;; ⑨ Coda for post-processing (when required)
+)
+#+end_src
+
+** Example set up
+
+#+begin_src emacs-lisp
+(get-buffer-create "maxima-error")
+(setq maxima-proc
+      (make-process
+       :name "maxima-proc"
+       :command '("maxima" "--very-quiet") 
+       :stderr "maxima-error"
+       :filter #'org-babel-servant-callback))
+
+(puthash '("maxima-proc" :preproc) (lambda (x params) (concat x "\n"))           org-babel-servant-info)
+(puthash '("maxima-proc" :preproc) (lambda (x params) (concat "tex(" x ");\n"))  org-babel-servant-info)
+(puthash '("maxima-proc" :postproc) (lambda (x params err) (substring x nil -6)) org-babel-servant-info)
+(puthash '("maxima-proc" :timeout) 2.0                                           org-babel-servant-info)
+(gethash '("maxima-proc" :lastout)                                               org-babel-servant-info)
+#+end_src
+
+* Reflections: pleasure and pain!                                      :30s:
+
+1. Getting *emacs-juypter* working via TRAMP not resolved ([[https://github.com/nnicandro/emacs-jupyter/issues/191][#191]])!     :-(
+
+2. Working on ob-servant was pretty fun!                            *:-)*
+
+3. We got more experience with co-editing code                      *:-)*
+
+4. The stack is work in progress (e.g. crdt.el bugfixes thanks to
+   Qiantan).                                                        *:-)*
+
+5. A few small *compatibility issues* came up with /Firn/ and /Logseq/
+   (these were addressed by the maintainers quickly!)               *:-)*
+
+6. We tried getting Emacs running in the browser to make these tools
+   widely accessible — but command keys didn’t pass through properly
+   on the most popular browsers.                                    :-(
+
+7. We got benefit from presenting early prototypes at Emacs NYC     *:-)*
+
+8. Dialogues continue around EmacsConf 2020 w/ Fermin and others    *:-)*
+
+* Future work 1                                                         :30s:
+
+- How to integrate this workflow with Arxana (EmacsConf 2013, FARM 2017)
+
+- General idea of network programming, e.g., with string diagrams
+
+- How do we think about “remote control” for long-running processes?
+
+* Conclusions: we have taken steps to address:                         :30s:
+
+** Reproducible research
+
+- Something is "reproducible" if it is teachable to someone new!
+
+- Org Mode (and literate programming in general) is useful for this.
+
+
+** Interdisciplinary collaboration
+
+- Collaboration across different skill sets is challenging.
+
+- Our collaboration was already interdisciplinary...
+
+• ... but what about collaborations between a scenario planner, a
+      simulation scientist, and local farmers, etc.?
+
+* Future work 2                                                        :30s:
+
+** Science should be:
+
+- Widely teachable
+- Sharable
+- Semi-automated
+- Transdisciplinary
+- Real-time, like EmacsConf!
+
+# Local Variables:
+# org-latex-inputenc-alist: (("utf8" . "utf8x"))
+# eval: (setq org-latex-default-packages-alist (cons '("mathletters" "ucs" nil) org-latex-default-packages-alist))
+# End:
