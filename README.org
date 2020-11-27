@@ -211,8 +211,7 @@ language around to control fontification etc.)
 
 - Our collaboration was already interdisciplinary...
 
-• ... but what about collaborations between a scenario planner, a
-      simulation scientist, and local farmers, etc.?
+• ... but what about collaborations between a scenario planner, a simulation scientist, and local farmers, etc.?
 
 * Future work 2                                                        :30s:
 
