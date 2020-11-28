@@ -23,8 +23,8 @@ Their work combines biology, physics, and computer science.
 
 Cameron is experienced with Jupyter and...
 
-- Script of Scripts (https://vatlab.github.io/sos-docs/) partially
-  solves /some/ of the problems.
+- we found Script of Scripts (https://vatlab.github.io/sos-docs/)
+  but it only solves /some/ of the problems.
 
 Joe and Ray were happy explore Emacs-based solutions.
 (And Cameron got enthusiastic about Doom Emacs!)
@@ -41,22 +41,21 @@ Joe and Ray were happy explore Emacs-based solutions.
 | Pairing  | lockstep.el    | Collaborate in real time                |
 | Etherpad | crdt.el        | ... with multiple people typing at once |
 | Zotero   | ORB            | Reference related work                  |
-| TeX      | latex-mode     | Typeset the results                     |
+| TeX      | Org Mode!      | Typeset the results                     |
 | Jekyll   | Firn           | Publish work in progress on a blog      |
 | KaTeX    | fragtog        | ... including LaTeX math symbols        |
-| LaTeXML  | Org Mode!      | ... or possibly more advaced LaTeX      |
 
-* Naive calculation, using Maxima mode                                  :1m:
+* Let’s try a calculation using Maxima mode                             :1m:
+  *Maxima doesn’t have a long-running process by default!* Here’s a workaround.
 
-*Maxima doesn’t have a long-running process by default!* Here’s a *“partridge in a pear tree”* workaround.
 #+begin_example
-⌗+NAME: solve-for-u0
+⌗+NAME: solve-for-u
 ⌗+BEGIN_SRC maxima :results raw
-tex(u0sol : part(solve ([u/(D*u + s) = %e^(-s*v) * u0/(D*u0 + s)], [u0]), 1 , 2));
+tex(usol : part(solve ([u/(D*u + s) = %e^(-s*v) * u0/(D*u0 + s)], [u]), 1 , 2));
 ⌗+END_SRC
 #+end_example
-#+RESULTS: solve-for-u0
-$$-{{s\,u\,e^{s\,v}}\over{D\,u\,e^{s\,v}-D\,u-s}}$$
+#+RESULTS: solve-for-u
+$${{s\,u_{0}}\over{\left(D\,u_{0}+s\right)\,e^{s\,v}-D\,u_{0}}}$$
 #+NAME: check-characteristic-u
 #+begin_example
 ⌗+BEGIN_SRC maxima :results raw :noweb yes
@@ -68,10 +67,8 @@ tex(factor(diff(usol, v) + usol*(D*usol + s)));
 $${{s\,u_{0}}\over{\left(D\,u_{0}+s\right)\,e^{s\,v}-D\,u_{0}}}$$
 $$0$$
 
-* Problem 1: passing variables and outputs! — Org mode can do this      :1m:
-
-(Actually, perhaps it’s a bit easier than the naive attempt suggests.)
-
+* Problem 1: passing variables and outputs! — maybe not /so/ bad?         :1m:
+/Something like this should be enough to stitch Maxima and Julia together./
 #+begin_example
 ⌗+name: block-1
 ⌗+BEGIN_SRC emacs-lisp :cache yes :results raw
@@ -108,7 +105,7 @@ expand((x+1)^9)
 #+RESULTS:
 $$x^9+9\,x^8+36\,x^7+84\,x^6+126\,x^5+126\,x^4+84\,x^3+36\,x^2+9\,x+1$$
 
-(*Bonus feature*: we made it do tex output by default.)
+(*Bonus feature*: notice that we made it do tex output by default.)
 
 ** Minor change to ob-core.el
 
@@ -120,8 +117,8 @@ language around to control fontification etc.)
 715c715,719
 < 		 (cmd (intern (concat "org-babel-execute:" lang)))
 ---
-> 		 ;; OVERRIDE WITH :stream TO ACCESS THE PROCESS WE CALL
-> 		 ;; e.g. (:stream . "calculator")
+> 		 ;; OVERRIDE WITH :servant TO ACCESS THE PROCESS WE CALL
+> 		 ;; e.g. (:servant . "calculator")
 > 		 (cmd (if (assoc :servant params)
 > 			#'org-babel-servant
 > 			(intern (concat "org-babel-execute:" lang))))
@@ -159,11 +156,17 @@ language around to control fontification etc.)
        :stderr "maxima-error"
        :filter #'org-babel-servant-callback))
 
-(puthash '("maxima-proc" :preproc) (lambda (x params) (concat x "\n"))           org-babel-servant-info)
 (puthash '("maxima-proc" :preproc) (lambda (x params) (concat "tex(" x ");\n"))  org-babel-servant-info)
 (puthash '("maxima-proc" :postproc) (lambda (x params err) (substring x nil -6)) org-babel-servant-info)
 (puthash '("maxima-proc" :timeout) 2.0                                           org-babel-servant-info)
-(gethash '("maxima-proc" :lastout)                                               org-babel-servant-info)
+#+end_src
+
+BTW, the /substring/ is b/c Maxima prints out =false= as a second return here:
+
+#+begin_src maxima
+tex(expand((x+1)^9));
+$$x^9+9\,x^8+36\,x^7+84\,x^6+126\,x^5+126\,x^4+84\,x^3+36\,x^2+9\,x+1$$
+false
 #+end_src
 
 * Reflections: pleasure and pain!                                      :30s:
@@ -190,13 +193,19 @@ language around to control fontification etc.)
 
 * Future work 1                                                         :30s:
 
-- How to integrate this workflow with Arxana (EmacsConf 2013, FARM 2017)
+- How to integrate this workflow with Arxana (EmacsConf 2013, FARM 2017)?
 
-- General idea of network programming, e.g., with string diagrams
+  - /One idea/: Arxana deals with transclusions, and could potentially
+    help with the combined notes+writeup workflow.
+  - Also relates to the general idea of “network programming”
 
 - How do we think about “remote control” for long-running processes?
 
 * Conclusions: we have taken steps to address:                         :30s:
+
+Technical experiments are about /accessing any longrunning process/ with
+a simple interface.  We’re not the only people to look into
+“notebooks” but we think that Emacs has some advantages.
 
 ** Reproducible research
 
@@ -211,7 +220,8 @@ language around to control fontification etc.)
 
 - Our collaboration was already interdisciplinary...
 
-• ... but what about collaborations between a scenario planner, a simulation scientist, and local farmers, etc.?
+• ... but what about collaborations between a scenario planner,
+      simulation scientist, and local farmers, etc.?
 
 * Future work 2                                                        :30s:
 
@@ -222,6 +232,29 @@ language around to control fontification etc.)
 - Semi-automated
 - Transdisciplinary
 - Real-time, like EmacsConf!
+
+#+begin_example
+EMAIL        joseph.corneli@hyperreal.enterprises
+             rsp@hyperreal.enterprises
+             cameron.ray.smith@gmail.com
+
+IRC          jcorneli
+
+CODE (WIP)   github.com/exp2exp/ob-servant
+#+end_example
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Local Variables:
 # org-latex-inputenc-alist: (("utf8" . "utf8x"))
