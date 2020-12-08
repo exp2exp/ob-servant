@@ -4,6 +4,48 @@
 #+OPTIONS: toc:nil
 #+LATEX_HEADER: \usepackage[utf8x]{inputenc}
 
+* TL;DR — enough to get it working!
+
+This is a way to set up connections between Emacs and long running
+processes, with an Org Mode interface.  To use it, you first need to
+patch ob-core.el in the Org Mode distribution.
+
+#+begin_src 
+cd ~/org-mode/
+git apply ~/ob-servant/ob-servant.diff
+#+end_src
+
+You’ll then need to reload the file you just patched:
+
+#+begin_src 
+(load "~/org-mode/lisp/ob-core.el")
+#+end_src
+
+Next, you need to load the code defining the package.
+
+#+begin_src 
+(load "~/ob-servant/ob-servant.el")
+#+end_src
+
+The same for our example implementation:
+
+#+begin_src 
+(load "~/ob-servant/ob-servant-example.el")
+#+end_src
+
+With all of this in place, blocks such as the following can be evaluated:
+
+#+begin_src exp :servant maxima-proc :results output org
+display2d:false
+#+end_src
+
+#+begin_src exp :servant maxima-proc :results output raw
+expand((x+1)^9)
+#+end_src
+
+
+
+
 * Scenario                                                             :20s:
 
 Ray and Cameron have been collaborating for years on theoretical
