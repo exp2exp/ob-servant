@@ -43,7 +43,28 @@ display2d:false
 expand((x+1)^9)
 #+end_src
 
+* Development plan — 8 December 2020
 
+** Reread things in the Elisp manual about processes, and make the system robust to all of these
+
+- Robustify the connections to the underlying processes (e.g., deal with packets being sent separately)
+ - Write a shell script for testing the edge cases of [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Accepting-Output.html#Accepting-Output][Accepting Output]].
+ - Make sure we fully understand e.g. the standard error stuff
+ - Pipe processes
+
+** Next demos
+
+- Hook Maxima and Julia together, e.g., with raindrops or whatever other demo
+ - Note that we might want multiple versions of Maxima running with different settings also (e.g., Fermin did this)
+- Make an Emacs demo? - What are the different ways of doing this?
+- Write to [[https://eschulte.github.io/][Eric Schulte]] and Bastien figuring out how to get the changes into Org Mode
+
+** Future Scenarios
+
+- Consider cases that run *autonomously* of human and need to e.g., re-update output or act on the basis of some other long running process
+- Think about relationships with Arxana
+- Think about relationships with MUD architecture (e.g., aborted work on [[https://github.com/holtzermann17/mmtn][MMTN]])
+- Think about relationships with agents in Clojure
 
 
 * Scenario                                                             :20s:
